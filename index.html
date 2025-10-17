@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Neon Pong</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #000;
+            font-family: 'Press Start 2P', cursive;
+            color: #fff;
+            user-select: none;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        #game-container {
+            border: 5px solid #00ffff;
+            box-shadow: 0 0 20px #00ffff, 0 0 40px #00ff7f;
+            background-color: #111;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        canvas {
+            display: block;
+            background: linear-gradient(135deg, #111, #000);
+            cursor: none;
+        }
+
+        #scoreboard {
+            width: 100%;
+            height: 50px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            color: #ff00ff;
+            font-size: 1.2rem;
+            text-shadow: 0 0 8px #ff00ff;
+            background-color: #222;
+            border-bottom: 3px solid #ff00ff;
+            padding: 5px 0;
+        }
+
+        #start-screen, #game-over-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+        
+        #start-screen h1, #game-over-screen h1 {
+            color: #00ff00;
+            text-shadow: 0 0 10px #00ff00;
+            font-size: clamp(1.5rem, 5vw, 3rem);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        #start-screen p {
+            color: #00ffff;
+            text-shadow: 0 0 5px #00ffff;
+            font-size: clamp(0.6rem, 2vw, 1rem);
+            text-align: center;
+            margin-top: 10px;
+            line-height: 1.5;
+        }
+
+        .neon-button {
+            padding: 10px 20px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 1rem;
+            color: #ff00ff;
+            background: #000;
+            border: 4px solid #ff00ff;
+            box-shadow: 0 0 5px #ff00ff, 0 0 15px #ff00ff, inset 0 0 5px #ff00ff;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            margin-top: 30px;
+        }
+
+        .neon-button:hover {
+            color: #000;
+            background: #ff00ff;
+            text-shadow: none;
+            box-shadow: 0 0 10px #ff00ff, 0 0 30px #ff00ff, inset 0 0 10px #ff00ff;
+        }
+        
+        .instructions {
+            margin-top: 20px;
+            text-align: center;
+            color: #aaa;
+            font-size: 0.7rem;
+            line-height: 1.4;
+        }
+
+        @media (max-width: 600px) {
+            #scoreboard {
+                font-size: 0.8rem;
+                height: 40px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="scoreboard">
+        <span id="player1-score">P1: 0</span>
+        <span id="player2-score">CPU: 0</span>
+    </div>
+    <canvas id="pongCanvas"></canvas>
+</div>
+
+<div class="instructions">
+    <p>Player 1 (Left): **W** (Up) and **S** (Down)</p>
+    <p>Player 2 (Right / CPU): **Arrow Up** and **Arrow Down** (or simply let the CPU play!)</p>
+</div>
+
+<div id="start-screen">
+    <h1>Retro Neon Pong</h1>
+    <p>A classic arcade game for beginners.</p>
+    <button id="startButton" class="neon-button">START GAME</button>
+    <p id="start-instructions" style="margin-top: 40px; color: #ff00ff;">Press W/S and Arrow Up/Down to control</p>
+</div>
+
+<div id="game-over-screen" style="display: none;">
+    <h1 id="game-over-text">GAME OVER</h1>
+    <p id="final-score" style="color: #00ff00; font-size: 1.5rem; text-shadow: 0 0 8px #00ff00;"></p>
+    <button id="restartButton" class="neon-button">RESTART</button>
+</div>
+
+<script>
+    const canvas = document.getElementById('pongCanvas');
+    const ctx = canvas.getContext('2d');
+    const score1Element = document.getElementById('player1-score');
+    const score2Element = document.getElementById('player2-score');
+    const startScreen = document.getElementById('start-screen');
+    const startButton = document.getElementById('startButton');
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const restartButton = document.getElementById('restartButton');
+    const gameOverText = document.getElementById('game-over-text');
+    const finalScore = document.getElementById('final-score');
+
+    const ASPECT_RATIO = 16 / 9;
+    let gameRunning = false;
+    let keys = {};
+
+    function resizeCanvas() {
+        const container = document.getElementById('game-container');
+        const width = container.clientWidth - 10; 
+        const height = width / ASPECT_RATIO;
+
+        if (width > 800) {
+            canvas.width = 800;
+            canvas.height = 800 / ASPECT_RATIO;
+        } else if (width < 300) {
+            canvas.width = 300;
+            canvas.height = 300 / ASPECT_RATIO;
+        } else {
+            canvas.width = width;
+            canvas.height = height;
+        }
+        
+        if (gameRunning) {
+            PADDLE_WIDTH = canvas.width * 0.015;
+            PADDLE_HEIGHT = canvas.height * 0.18;
+            BALL_SIZE = canvas.width * 0.012;
+            resetGame();
+        }
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+
+    let PADDLE_WIDTH = 0;
+    let PADDLE_HEIGHT = 0;
+    let BALL_SIZE = 0;
+    const PADDLE_SPEED = 0.018;
+    const INITIAL_BALL_SPEED = 0.006;
+    const MAX_SCORE = 5;
+
+    let player1 = {};
+    let player2 = {};
+    let ball = {};
+    let score1 = 0;
+    let score2 = 0;
+
+    function initGameConstants() {
+        PADDLE_WIDTH = canvas.width * 0.015;
+        PADDLE_HEIGHT = canvas.height * 0.18;
+        BALL_SIZE = canvas.width * 0.012;
+    }
+
+    function resetGame() {
+        initGameConstants();
+
+        player1 = {
+            x: 0,
+            y: canvas.height / 2 - PADDLE_HEIGHT / 2,
+            width: PADDLE_WIDTH,
+            height: PADDLE_HEIGHT,
+            color: '#00ffff',
+            dy: 0
+        };
+
+        player2 = {
+            x: canvas.width - PADDLE_WIDTH,
+            y: canvas.height / 2 - PADDLE_HEIGHT / 2,
+            width: PADDLE_WIDTH,
+            height: PADDLE_HEIGHT,
+            color: '#ff00ff',
+            dy: 0
+        };
+
+        ball = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            size: BALL_SIZE,
+            color: '#00ff00',
+            dx: INITIAL_BALL_SPEED * canvas.width * (Math.random() > 0.5 ? 1 : -1),
+            dy: INITIAL_BALL_SPEED * canvas.height * (Math.random() * 2 - 1) * 0.5
+        };
+    }
+
+    function drawRect(x, y, w, h, color) {
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, w, h);
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = color;
+        ctx.fillRect(x, y, w, h);
+        ctx.shadowBlur = 0;
+    }
+
+    function drawBall(x, y, size, color) {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(x, y, size, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = color;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+
+    function drawField() {
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.strokeStyle = '#ff00ff';
+        ctx.lineWidth = 4;
+        ctx.setLineDash([10, 10]);
+        ctx.beginPath();
+        ctx.moveTo(canvas.width / 2, 0);
+        ctx.lineTo(canvas.width / 2, canvas.height);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    function updatePaddle(paddle) {
+        paddle.y += paddle.dy;
+
+        if (paddle.y < 0) {
+            paddle.y = 0;
+        } else if (paddle.y + paddle.height > canvas.height) {
+            paddle.y = canvas.height - paddle.height;
+        }
+    }
+
+    function updateBall() {
+        ball.x += ball.dx;
+        ball.y += ball.dy;
+
+        if (ball.y + ball.size > canvas.height || ball.y - ball.size < 0) {
+            ball.dy *= -1;
+        }
+
+        if (ball.x < 0) {
+            score2++;
+            score2Element.textContent = `CPU: ${score2}`;
+            checkGameOver();
+            resetBall(1);
+        } else if (ball.x > canvas.width) {
+            score1++;
+            score1Element.textContent = `P1: ${score1}`;
+            checkGameOver();
+            resetBall(-1);
+        }
+
+        checkPaddleCollision(player1);
+        checkPaddleCollision(player2);
+    }
+
+    function checkPaddleCollision(paddle) {
+        let hit = false;
+        
+        if (paddle === player1 && 
+            ball.x - ball.size < paddle.x + paddle.width &&
+            ball.y > paddle.y && 
+            ball.y < paddle.y + paddle.height &&
+            ball.dx < 0) {
+            hit = true;
+        }
+        
+        if (paddle === player2 && 
+            ball.x + ball.size > paddle.x &&
+            ball.y > paddle.y && 
+            ball.y < paddle.y + paddle.height &&
+            ball.dx > 0) {
+            hit = true;
+        }
+
+        if (hit) {
+            ball.dx *= -1;
+
+            let collidePoint = ball.y - (paddle.y + paddle.height / 2);
+            collidePoint = collidePoint / (paddle.height / 2);
+
+            const speedFactor = 1.05; 
+            ball.dx *= speedFactor;
+            ball.dy *= speedFactor;
+            
+            const MAX_SPEED_X = canvas.width * 0.012; 
+            const MAX_SPEED_Y = canvas.height * 0.012; 
+
+            ball.dx = Math.min(Math.abs(ball.dx), MAX_SPEED_X) * Math.sign(ball.dx);
+            ball.dy = Math.min(Math.abs(ball.dy), MAX_SPEED_Y) * Math.sign(ball.dy);
+            
+            ball.dy = collidePoint * (ball.dx / 2); 
+        }
+    }
+
+    function resetBall(direction) {
+        ball.x = canvas.width / 2;
+        ball.y = canvas.height / 2;
+        
+        ball.dx = INITIAL_BALL_SPEED * canvas.width * direction; 
+        ball.dy = INITIAL_BALL_SPEED * canvas.height * (Math.random() * 2 - 1) * 0.5;
+
+        player1.dy = 0;
+        player2.dy = 0;
+    }
+    
+    function cpuAI() {
+        const targetY = ball.y - player2.height / 2;
+        const currentY = player2.y;
+        const speed = PADDLE_SPEED * canvas.height * 0.5;
+
+        if (ball.dx > 0) {
+            if (currentY < targetY) {
+                player2.y += Math.min(speed, targetY - currentY);
+            } else if (currentY > targetY) {
+                player2.y -= Math.min(speed, currentY - targetY);
+            }
+        }
+    }
+
+    function handleInput() {
+        const speed = PADDLE_SPEED * canvas.height;
+        
+        player1.dy = 0;
+        if (keys['w']) {
+            player1.dy = -speed;
+        }
+        if (keys['s']) {
+            player1.dy = speed;
+        }
+        
+        player2.dy = 0;
+        if (keys['ArrowUp']) {
+            player2.dy = -speed;
+        }
+        if (keys['ArrowDown']) {
+            player2.dy = speed;
+        }
+
+        if (player2.dy === 0) {
+            cpuAI();
+        } else {
+            updatePaddle(player2);
+        }
+        
+        updatePaddle(player1);
+    }
+
+    function gameLoop() {
+        if (!gameRunning) return;
+
+        handleInput();
+        updateBall();
+
+        drawField();
+        drawRect(player1.x, player1.y, player1.width, player1.height, player1.color);
+        drawRect(player2.x, player2.y, player2.width, player2.height, player2.color);
+        drawBall(ball.x, ball.y, ball.size, ball.color);
+
+        requestAnimationFrame(gameLoop);
+    }
+
+    function checkGameOver() {
+        if (score1 >= MAX_SCORE || score2 >= MAX_SCORE) {
+            gameRunning = false;
+            gameOverScreen.style.display = 'flex';
+            
+            if (score1 >= MAX_SCORE) {
+                gameOverText.textContent = 'YOU WIN!';
+                gameOverText.style.color = '#00ff00';
+            } else {
+                gameOverText.textContent = 'CPU WINS. TRY AGAIN!';
+                gameOverText.style.color = '#ff00ff';
+            }
+            finalScore.textContent = `Final Score: P1 ${score1} - CPU ${score2}`;
+        }
+    }
+    
+    function startGame() {
+        score1 = 0;
+        score2 = 0;
+        score1Element.textContent = `P1: 0`;
+        score2Element.textContent = `CPU: 0`;
+        resetGame();
+        gameRunning = true;
+        startScreen.style.display = 'none';
+        gameOverScreen.style.display = 'none';
+        gameLoop();
+    }
+
+    startButton.addEventListener('click', startGame);
+    restartButton.addEventListener('click', startGame);
+
+    document.addEventListener('keydown', (e) => {
+        const validKeys = ['w', 's', 'W', 'S', 'ArrowUp', 'ArrowDown'];
+        if (validKeys.includes(e.key)) {
+            keys[e.key] = true;
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                e.preventDefault();
+            }
+        }
+        
+        if (e.key === ' ' && !gameRunning && startScreen.style.display === 'flex') {
+            startGame();
+            e.preventDefault();
+        }
+    });
+
+    document.addEventListener('keyup', (e) => {
+        keys[e.key] = false;
+    });
+
+    resizeCanvas();
+
+</script>
+</body>
+</html>
