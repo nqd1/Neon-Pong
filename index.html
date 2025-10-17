@@ -18,19 +18,20 @@
             color: #fff;
             user-select: none;
             flex-direction: column;
-            padding: 20px;
+            padding: 0;
+            overflow: hidden;
         }
 
         #game-container {
             border: 5px solid #00ffff;
             box-shadow: 0 0 20px #00ffff, 0 0 40px #00ff7f;
             background-color: #111;
-            border-radius: 8px;
             overflow: hidden;
             display: flex;
             flex-direction: column;
             align-items: center;
-            margin-bottom: 20px;
+            width: 100vw;
+            height: 100vh;
         }
 
         canvas {
@@ -131,7 +132,7 @@
     <canvas id="pongCanvas"></canvas>
 </div>
 
-<div class="instructions">
+<div class="instructions" style="display: none;">
     <p>Player 1 (Left): **W** (Up) and **S** (Down)</p>
     <p>Player 2 (Right / CPU): **Arrow Up** and **Arrow Down** (or simply let the CPU play!)</p>
 </div>
@@ -167,19 +168,23 @@
 
     function resizeCanvas() {
         const container = document.getElementById('game-container');
-        const width = container.clientWidth - 10; 
-        const height = width / ASPECT_RATIO;
-
-        if (width > 800) {
-            canvas.width = 800;
-            canvas.height = 800 / ASPECT_RATIO;
-        } else if (width < 300) {
-            canvas.width = 300;
-            canvas.height = 300 / ASPECT_RATIO;
-        } else {
-            canvas.width = width;
-            canvas.height = height;
+        const scoreboard = document.getElementById('scoreboard');
+        const scoreboardHeight = scoreboard.offsetHeight;
+        
+        const availableWidth = container.clientWidth;
+        const availableHeight = container.clientHeight - scoreboardHeight;
+        
+        const aspectRatio = ASPECT_RATIO;
+        let width = availableWidth;
+        let height = width / aspectRatio;
+        
+        if (height > availableHeight) {
+            height = availableHeight;
+            width = height * aspectRatio;
         }
+        
+        canvas.width = width;
+        canvas.height = height;
         
         if (gameRunning) {
             PADDLE_WIDTH = canvas.width * 0.015;
